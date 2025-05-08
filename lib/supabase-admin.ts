@@ -1,17 +1,23 @@
 import { createClient } from "@supabase/supabase-js"
 
-// These environment variables need to be set in your project
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://tdbhrgeomfiqhluyurjm.supabase.co"
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+// Function to get the admin client only when needed
+// This prevents initialization during build time
+export function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (!supabaseServiceKey) {
-  console.warn("SUPABASE_SERVICE_ROLE_KEY is not set. Admin operations will not work.")
+  // Validate required credentials
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error(
+      "Supabase admin client requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables",
+    )
+  }
+
+  // Create and return the admin client
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
 }
-
-// Create a Supabase client with the service role key for admin operations
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-})

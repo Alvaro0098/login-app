@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { supabaseAdmin } from "@/lib/supabase-admin"
+import { getSupabaseAdmin } from "@/lib/supabase-admin"
 
 export async function GET(request: Request) {
   try {
@@ -11,9 +11,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Email parameter is required" }, { status: 400 })
     }
 
-    // Check if service role key is available
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ error: "Server is not configured for admin operations" }, { status: 500 })
+    // Try to get the admin client
+    let supabaseAdmin
+    try {
+      supabaseAdmin = getSupabaseAdmin()
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: `Server is not configured for admin operations: ${error.message}` },
+        { status: 500 },
+      )
     }
 
     // Check if user exists in auth.users

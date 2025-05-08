@@ -1,36 +1,36 @@
 import { NextResponse } from "next/server"
-import { supabaseAdmin } from "@/lib/supabase-admin"
+import { getSupabaseAdmin } from "@/lib/supabase-admin"
 
 export async function POST(request: Request) {
   try {
     // Parse the request body
     const { email, password } = await request.json()
 
-    console.log("Admin API received registration request for:", email)
-
     // Validate input
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
-    // Check if service role key is available
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ error: "Server is not configured for admin operations" }, { status: 500 })
+    // Try to get the admin client
+    let supabaseAdmin
+    try {
+      supabaseAdmin = getSupabaseAdmin()
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: `Server is not configured for admin operations: ${error.message}` },
+        { status: 500 },
+      )
     }
 
-    // Register the user with Supabase Admin API (bypasses email confirmation)
+    // Register the user with Supabase Admin API
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true, // Automatically confirms the email
-      user_metadata: {
-        registered_at: new Date().toISOString(),
-      },
     })
 
     // Handle registration errors
     if (error) {
-      console.error("Admin registration error:", error)
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
