@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-// This requires the service role key which has admin privileges
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || "",
-)
-
 export async function POST(request: Request) {
   try {
     // Get the email from the request
@@ -16,10 +10,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
 
-    // Check if the service role key is available
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ error: "Service role key is not configured" }, { status: 500 })
+    // Check if the required environment variables are available
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Missing Supabase admin credentials")
+      return NextResponse.json(
+        { error: "Server configuration error: Missing authentication credentials" },
+        { status: 500 },
+      )
     }
+
+    // Initialize the Supabase admin client inside the handler function
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
 
     // Get the user by email
     const { data: userData, error: userError } = await supabaseAdmin
