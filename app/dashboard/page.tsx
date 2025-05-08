@@ -6,52 +6,59 @@ import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
+interface UserProfile {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+}
+
 export default function Dashboard() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function getUser() {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession()
-
-      if (error) {
-        console.error("Error getting session:", error)
-        router.push("/signup")
-        return
-      }
-
-      if (!session) {
-        router.push("/signup")
-        return
-      }
-
-      setUser(session.user)
-
-      // Fetch user profile from user_profiles table
       try {
-        const { data: profileData, error: profileError } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single()
+        // Check if user is authenticated
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
 
-        if (profileError && profileError.code !== "PGRST116") {
-          console.error("Error fetching profile:", profileError)
+        if (error || !session) {
+          console.error("No active session:", error)
+          router.push("/login")
+          return
         }
 
-        if (profileData) {
-          setProfile(profileData)
+        setUser(session.user)
+
+        // Fetch user profile from user_profiles table
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .single()
+
+          if (profileError) {
+            console.error("Error fetching profile:", profileError)
+          } else if (profileData) {
+            setProfile(profileData as UserProfile)
+          }
+        } catch (err) {
+          console.error("Error in profile fetch:", err)
         }
-      } catch (err) {
-        console.error("Error in profile fetch:", err)
+
+        setLoading(false)
+      } catch (error) {
+        console.error("Error in getUser:", error)
+        router.push("/login")
+        return
       }
-
-      setLoading(false)
     }
 
     getUser()
@@ -59,7 +66,7 @@ export default function Dashboard() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
-    router.push("/signup")
+    router.push("/login")
   }
 
   if (loading) {
@@ -69,12 +76,6 @@ export default function Dashboard() {
       </div>
     )
   }
-
-  // Get user data from profile or metadata as fallback
-  const firstName = profile?.first_name || user?.user_metadata?.first_name || ""
-  const lastName = profile?.last_name || user?.user_metadata?.last_name || ""
-  const phone = profile?.phone || user?.user_metadata?.phone || ""
-  const fullName = `${firstName} ${lastName}`.trim() || user?.email?.split("@")[0] || "User"
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-100 p-4 sm:p-6 md:p-8">
@@ -87,7 +88,7 @@ export default function Dashboard() {
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Welcome, {fullName}</CardTitle>
+          <CardTitle>Welcome, {profile?.first_name || "User"}</CardTitle>
           <CardDescription>Your account information</CardDescription>
         </CardHeader>
         <CardContent>
@@ -96,20 +97,16 @@ export default function Dashboard() {
               <p className="text-sm font-medium text-gray-500">Email</p>
               <p>{user?.email}</p>
             </div>
-            {firstName && (
-              <div>
-                <p className="text-sm font-medium text-gray-500">Name</p>
-                <p>
-                  {firstName} {lastName}
-                </p>
-              </div>
-            )}
-            {phone && (
-              <div>
-                <p className="text-sm font-medium text-gray-500">Phone</p>
-                <p>{phone}</p>
-              </div>
-            )}
+            <div>
+              <p className="text-sm font-medium text-gray-500">Name</p>
+              <p>
+                {profile?.first_name} {profile?.last_name}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">User ID</p>
+              <p className="text-sm text-gray-600 break-all">{user?.id}</p>
+            </div>
             <div>
               <p className="text-sm font-medium text-gray-500">Account Created</p>
               <p>{new Date(user?.created_at).toLocaleDateString()}</p>
@@ -117,18 +114,6 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {/* Dashboard content would go here */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>No recent activity</p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   )
 }

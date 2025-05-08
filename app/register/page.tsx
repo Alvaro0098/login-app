@@ -3,26 +3,20 @@
 import type React from "react"
 
 import { useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { supabase } from "@/lib/supabase"
-
-// Email validation regex
-const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-// Phone validation regex (basic)
-const PHONE_REGEX = /^\+?[0-9]{10,15}$/
 
 export default function RegisterPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
-    phone: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -58,15 +52,8 @@ export default function RegisterPage() {
     // Validate email format
     if (!formData.email) {
       newErrors.email = "Email is required"
-    } else if (!EMAIL_REGEX.test(formData.email)) {
+    } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(formData.email)) {
       newErrors.email = "Please enter a valid email address"
-    }
-
-    // Validate phone number
-    if (!formData.phone) {
-      newErrors.phone = "Phone number is required"
-    } else if (!PHONE_REGEX.test(formData.phone)) {
-      newErrors.phone = "Please enter a valid phone number"
     }
 
     // Validate password
@@ -97,71 +84,64 @@ export default function RegisterPage() {
     setMessage(null)
 
     try {
-      // Step 1: Register the user with Supabase using email and password
+      // Step 1: Register the user with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
-        options: {
-          // Store profile data in user metadata for later use
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            phone: formData.phone,
-          },
-        },
       })
 
       if (error) {
-        throw new Error(error.message)
+        throw error
       }
 
-      // Step 2: Create user profile in user_profiles table
-      if (data.user) {
-        try {
-          const { error: profileError } = await supabase.from("user_profiles").insert({
-            id: data.user.id,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            phone: formData.phone,
-          })
+      if (!data.user) {
+        throw new Error("Registration failed. No user data returned.")
+      }
 
-          if (profileError) {
-            console.error("Error creating profile:", profileError)
-            // Continue even if profile creation fails
-          }
-        } catch (profileErr) {
-          console.error("Error in profile creation:", profileErr)
-          // Continue even if profile creation fails
-        }
+      // Step 2: Insert user profile data into user_profiles table
+      const { error: profileError } = await supabase.from("user_profiles").insert({
+        id: data.user.id, // Use the UUID from auth.users
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+      })
 
-        // Check if email confirmation is required
-        if (data.user.confirmation_sent_at && !data.user.email_confirmed_at) {
-          setMessage({
-            text: "Registration successful! Please check your email for confirmation before logging in.",
-            type: "success",
-          })
-        } else {
-          setMessage({
-            text: "Registration successful! You can now log in with your credentials.",
-            type: "success",
-          })
+      if (profileError) {
+        console.error("Error creating user profile:", profileError)
+        // Continue with registration even if profile creation fails
+        // We can handle this later when the user logs in
+      }
 
-          // Redirect to login page after successful registration
-          setTimeout(() => {
-            router.push("/signup")
-          }, 2000)
-        }
-      } else {
+      // Check if email confirmation is required
+      if (data.user.confirmation_sent_at && !data.user.email_confirmed_at) {
         setMessage({
-          text: "Registration initiated but user data is unavailable.",
+          text: "Registration successful! Please check your email for confirmation before logging in.",
           type: "success",
         })
+      } else {
+        setMessage({
+          text: "Registration successful! You can now log in with your credentials.",
+          type: "success",
+        })
+
+        // Redirect to login page after successful registration
+        setTimeout(() => {
+          router.push("/login")
+        }, 2000)
       }
     } catch (error: any) {
-      setMessage({
-        text: error.message || "Failed to sign up",
-        type: "error",
-      })
+      // Handle specific error cases
+      if (error.message.includes("already registered")) {
+        setMessage({
+          text: "This email is already registered. Please use a different email or try logging in.",
+          type: "error",
+        })
+      } else {
+        setMessage({
+          text: error.message || "Failed to register",
+          type: "error",
+        })
+      }
     } finally {
       setIsLoading(false)
     }
@@ -219,23 +199,6 @@ export default function RegisterPage() {
                   />
                   {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="text-gray-700 font-medium">
-                  Phone Number
-                </Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+1234567890"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  required
-                  className={`h-11 px-4 transition-all border-gray-300 focus:border-purple-400 focus:ring focus:ring-purple-200 focus:ring-opacity-50 ${
-                    errors.phone ? "border-red-500" : ""
-                  }`}
-                />
-                {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-gray-700 font-medium">
@@ -298,7 +261,7 @@ export default function RegisterPage() {
           <CardFooter className="flex flex-col space-y-4 pt-2">
             <div className="text-center text-sm text-gray-600 mt-4">
               Already have an account?{" "}
-              <Link href="/signup" className="font-medium text-purple-600 hover:text-purple-800 transition-colors">
+              <Link href="/login" className="font-medium text-purple-600 hover:text-purple-800 transition-colors">
                 Sign in
               </Link>
             </div>

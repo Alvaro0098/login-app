@@ -1,25 +1,24 @@
--- This SQL script sets up the necessary tables and policies in Supabase
--- Run this in the Supabase SQL Editor
+-- Run this SQL in the Supabase SQL Editor to set up your database
 
--- Create the user_profiles table if it doesn't exist
+-- Create the user_profiles table
 CREATE TABLE IF NOT EXISTS public.user_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
-  phone TEXT,
+  email TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Add comment to the table
-COMMENT ON TABLE public.user_profiles IS 'Stores user profile information';
+COMMENT ON TABLE public.user_profiles IS 'Profile information for authenticated users';
 
 -- Create index on id for faster lookups
 CREATE INDEX IF NOT EXISTS idx_user_profiles_id ON public.user_profiles(id);
 
--- Set up Row Level Security (RLS)
+-- Enable Row Level Security
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 
--- Create policies
+-- Create policies for Row Level Security
 -- 1. Allow users to view their own profile
 CREATE POLICY "Users can view their own profile"
   ON public.user_profiles
