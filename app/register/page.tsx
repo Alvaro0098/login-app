@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -21,7 +22,7 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
-    phoneNumber: "",
+    phone: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -62,10 +63,10 @@ export default function RegisterPage() {
     }
 
     // Validate phone number
-    if (!formData.phoneNumber) {
-      newErrors.phoneNumber = "Phone number is required"
-    } else if (!PHONE_REGEX.test(formData.phoneNumber)) {
-      newErrors.phoneNumber = "Please enter a valid phone number"
+    if (!formData.phone) {
+      newErrors.phone = "Phone number is required"
+    } else if (!PHONE_REGEX.test(formData.phone)) {
+      newErrors.phone = "Please enter a valid phone number"
     }
 
     // Validate password
@@ -96,61 +97,65 @@ export default function RegisterPage() {
     setMessage(null)
 
     try {
-      // Step 1: Register the user with minimal data
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // Step 1: Register the user with Supabase using email and password
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          // Store profile data in user metadata for later use
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            phone: formData.phone,
+          },
         },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          phoneNumber: formData.phoneNumber,
-        }),
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Registration failed")
+      if (error) {
+        throw new Error(error.message)
       }
 
-      // Step 2: If registration was successful, update user metadata
-      if (data.user && data.user.id) {
+      // Step 2: Create user profile in user_profiles table
+      if (data.user) {
         try {
-          // Update user metadata
-          const { error: metadataError } = await supabase.auth.updateUser({
-            data: {
-              first_name: formData.firstName,
-              last_name: formData.lastName,
-              phone: formData.phoneNumber,
-              full_name: `${formData.firstName} ${formData.lastName}`,
-            },
+          const { error: profileError } = await supabase.from("user_profiles").insert({
+            id: data.user.id,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            phone: formData.phone,
           })
 
-          if (metadataError) {
-            console.error("Error updating user metadata:", metadataError)
-            // Continue even if metadata update fails
+          if (profileError) {
+            console.error("Error creating profile:", profileError)
+            // Continue even if profile creation fails
           }
-        } catch (updateError) {
-          console.error("Error in user metadata update:", updateError)
-          // Continue even if update fails
+        } catch (profileErr) {
+          console.error("Error in profile creation:", profileErr)
+          // Continue even if profile creation fails
         }
-      }
 
-      // Handle successful registration
-      setMessage({
-        text: data.message || "Registration successful!",
-        type: "success",
-      })
+        // Check if email confirmation is required
+        if (data.user.confirmation_sent_at && !data.user.email_confirmed_at) {
+          setMessage({
+            text: "Registration successful! Please check your email for confirmation before logging in.",
+            type: "success",
+          })
+        } else {
+          setMessage({
+            text: "Registration successful! You can now log in with your credentials.",
+            type: "success",
+          })
 
-      // Redirect to login page after successful registration
-      if (data.status !== "CONFIRMATION_REQUIRED") {
-        setTimeout(() => {
-          router.push("/signup")
-        }, 2000)
+          // Redirect to login page after successful registration
+          setTimeout(() => {
+            router.push("/signup")
+          }, 2000)
+        }
+      } else {
+        setMessage({
+          text: "Registration initiated but user data is unavailable.",
+          type: "success",
+        })
       }
     } catch (error: any) {
       setMessage({
@@ -216,21 +221,21 @@ export default function RegisterPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phoneNumber" className="text-gray-700 font-medium">
+                <Label htmlFor="phone" className="text-gray-700 font-medium">
                   Phone Number
                 </Label>
                 <Input
-                  id="phoneNumber"
+                  id="phone"
                   type="tel"
                   placeholder="+1234567890"
-                  value={formData.phoneNumber}
+                  value={formData.phone}
                   onChange={handleChange}
                   required
                   className={`h-11 px-4 transition-all border-gray-300 focus:border-purple-400 focus:ring focus:ring-purple-200 focus:ring-opacity-50 ${
-                    errors.phoneNumber ? "border-red-500" : ""
+                    errors.phone ? "border-red-500" : ""
                   }`}
                 />
-                {errors.phoneNumber && <p className="text-red-500 text-xs mt-1">{errors.phoneNumber}</p>}
+                {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-gray-700 font-medium">

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export default function Dashboard() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -30,6 +31,26 @@ export default function Dashboard() {
       }
 
       setUser(session.user)
+
+      // Fetch user profile from user_profiles table
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single()
+
+        if (profileError && profileError.code !== "PGRST116") {
+          console.error("Error fetching profile:", profileError)
+        }
+
+        if (profileData) {
+          setProfile(profileData)
+        }
+      } catch (err) {
+        console.error("Error in profile fetch:", err)
+      }
+
       setLoading(false)
     }
 
@@ -49,10 +70,10 @@ export default function Dashboard() {
     )
   }
 
-  // Get user data from metadata (since we're storing everything there now)
-  const firstName = user?.user_metadata?.first_name || ""
-  const lastName = user?.user_metadata?.last_name || ""
-  const phone = user?.user_metadata?.phone || "" // Updated to match the column name
+  // Get user data from profile or metadata as fallback
+  const firstName = profile?.first_name || user?.user_metadata?.first_name || ""
+  const lastName = profile?.last_name || user?.user_metadata?.last_name || ""
+  const phone = profile?.phone || user?.user_metadata?.phone || ""
   const fullName = `${firstName} ${lastName}`.trim() || user?.email?.split("@")[0] || "User"
 
   return (

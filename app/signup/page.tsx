@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -23,15 +24,8 @@ export default function LoginPage() {
     setIsLoading(true)
     setMessage(null)
 
-    // Basic validation
-    if (!email || !password) {
-      setMessage({ text: "Email and password are required", type: "error" })
-      setIsLoading(false)
-      return
-    }
-
     try {
-      // Use Supabase auth to sign in
+      // Sign in with email and password
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -41,16 +35,48 @@ export default function LoginPage() {
         throw error
       }
 
-      // Successful login
-      setMessage({ text: "Successfully signed in!", type: "success" })
+      // Check if the user exists in user_profiles
+      if (data.user) {
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("id", data.user.id)
+            .single()
 
-      // Redirect to dashboard or home page after successful login
-      setTimeout(() => {
-        router.push("/dashboard") // Replace with your dashboard route
-      }, 1500)
+          if (profileError && profileError.code !== "PGRST116") {
+            // PGRST116 is "no rows returned"
+            console.error("Error checking profile:", profileError)
+          }
+
+          // If profile doesn't exist, create it using user metadata
+          if (!profileData) {
+            const metadata = data.user.user_metadata || {}
+
+            const { error: insertError } = await supabase.from("user_profiles").insert({
+              id: data.user.id,
+              first_name: metadata.first_name || "",
+              last_name: metadata.last_name || "",
+              phone: metadata.phone || "",
+            })
+
+            if (insertError) {
+              console.error("Error creating profile:", insertError)
+              // Continue even if profile creation fails
+            }
+          }
+        } catch (profileErr) {
+          console.error("Error handling profile:", profileErr)
+          // Continue even if profile handling fails
+        }
+
+        // Show success message and redirect to dashboard
+        setMessage({ text: "Successfully signed in!", type: "success" })
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 1000)
+      }
     } catch (error: any) {
-      console.error("Login error:", error)
-
       // Handle specific error cases
       if (error.message.includes("Invalid login credentials")) {
         setMessage({ text: "Invalid email or password", type: "error" })
