@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,7 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { supabase } from "@/lib/supabase"
 
-export default function AuthPage() {
+export default function LoginPage() {
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null)
@@ -21,8 +23,16 @@ export default function AuthPage() {
     setIsLoading(true)
     setMessage(null)
 
+    // Basic validation
+    if (!email || !password) {
+      setMessage({ text: "Email and password are required", type: "error" })
+      setIsLoading(false)
+      return
+    }
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // Use Supabase auth to sign in
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
@@ -31,50 +41,24 @@ export default function AuthPage() {
         throw error
       }
 
+      // Successful login
       setMessage({ text: "Successfully signed in!", type: "success" })
+
+      // Redirect to dashboard or home page after successful login
+      setTimeout(() => {
+        router.push("/dashboard") // Replace with your dashboard route
+      }, 1500)
     } catch (error: any) {
-      setMessage({ text: error.message || "Failed to sign in", type: "error" })
-    } finally {
-      setIsLoading(false)
-    }
-  }
+      console.error("Login error:", error)
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setMessage(null)
-
-    try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Registration failed")
-      }
-
-      if (data.status === "CONFIRMATION_REQUIRED") {
-        setMessage({
-          text: "Registration successful! Please check your email for confirmation link before logging in.",
-          type: "success",
-        })
+      // Handle specific error cases
+      if (error.message.includes("Invalid login credentials")) {
+        setMessage({ text: "Invalid email or password", type: "error" })
+      } else if (error.message.includes("Email not confirmed")) {
+        setMessage({ text: "Please confirm your email before logging in", type: "error" })
       } else {
-        setMessage({
-          text: data.message || "Registration successful!",
-          type: "success",
-        })
+        setMessage({ text: error.message || "Failed to sign in", type: "error" })
       }
-    } catch (error: any) {
-      setMessage({
-        text: error.message || "Failed to sign up",
-        type: "error",
-      })
     } finally {
       setIsLoading(false)
     }
@@ -86,12 +70,10 @@ export default function AuthPage() {
         <Card className="backdrop-blur-sm bg-white/90 shadow-xl border-0">
           <CardHeader className="space-y-1 pb-6">
             <CardTitle className="text-2xl font-bold text-center text-gray-800">Welcome Back</CardTitle>
-            <CardDescription className="text-center text-gray-600">
-              Sign in to your account or create a new one
-            </CardDescription>
+            <CardDescription className="text-center text-gray-600">Sign in to your account</CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+            <form className="space-y-4" onSubmit={handleLogin}>
               {message && (
                 <Alert
                   className={
@@ -135,27 +117,23 @@ export default function AuthPage() {
                   className="h-11 px-4 transition-all border-gray-300 focus:border-purple-400 focus:ring focus:ring-purple-200 focus:ring-opacity-50"
                 />
               </div>
-            </form>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4 pt-2">
-            <div className="flex w-full space-x-2">
               <Button
-                className="flex-1 h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-                onClick={handleLogin}
+                type="submit"
+                className="w-full h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium transition-all duration-200 shadow-md hover:shadow-lg"
                 disabled={isLoading}
               >
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
-              <Button
-                className="flex-1 h-11 bg-white text-purple-600 border border-purple-200 hover:bg-purple-50 font-medium transition-all duration-200"
-                onClick={handleRegister}
-                disabled={isLoading}
-                variant="outline"
-              >
-                {isLoading ? "Signing up..." : "Sign Up"}
-              </Button>
-            </div>
+            </form>
+          </CardContent>
+          <CardFooter className="flex flex-col space-y-4 pt-2">
             <div className="text-center text-sm text-gray-600 mt-4">
+              Don't have an account?{" "}
+              <Link href="/register" className="font-medium text-purple-600 hover:text-purple-800 transition-colors">
+                Register now
+              </Link>
+            </div>
+            <div className="text-center text-sm text-gray-600">
               By continuing, you agree to our{" "}
               <a href="#" className="font-medium text-purple-600 hover:text-purple-800 transition-colors">
                 Terms of Service
