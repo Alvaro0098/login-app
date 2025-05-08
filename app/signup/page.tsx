@@ -59,10 +59,17 @@ export default function AuthPage() {
         throw new Error(data.error || "Registration failed")
       }
 
-      setMessage({
-        text: data.message || "Registration successful!",
-        type: "success",
-      })
+      if (data.status === "CONFIRMATION_REQUIRED") {
+        setMessage({
+          text: "Registration successful! Please check your email for confirmation link before logging in.",
+          type: "success",
+        })
+      } else {
+        setMessage({
+          text: data.message || "Registration successful!",
+          type: "success",
+        })
+      }
     } catch (error: any) {
       setMessage({
         text: error.message || "Failed to sign up",
@@ -74,74 +81,93 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-200 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Account Access</CardTitle>
-          <CardDescription className="text-center">Sign in or create a new account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-            {message && (
-              <Alert
-                className={
-                  message.type === "error"
-                    ? "bg-red-50 text-red-800 border-red-200"
-                    : "bg-green-50 text-green-800 border-green-200"
-                }
-              >
-                <AlertDescription>{message.text}</AlertDescription>
-              </Alert>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <a href="#" className="text-sm font-medium text-primary hover:underline">
-                  Forgot password?
-                </a>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4 sm:p-6 md:p-8">
+      <div className="w-full max-w-md">
+        <Card className="backdrop-blur-sm bg-white/90 shadow-xl border-0">
+          <CardHeader className="space-y-1 pb-6">
+            <CardTitle className="text-2xl font-bold text-center text-gray-800">Welcome Back</CardTitle>
+            <CardDescription className="text-center text-gray-600">
+              Sign in to your account or create a new one
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+              {message && (
+                <Alert
+                  className={
+                    message.type === "error"
+                      ? "bg-red-50 text-red-800 border-red-200"
+                      : "bg-green-50 text-green-800 border-green-200"
+                  }
+                >
+                  <AlertDescription>{message.text}</AlertDescription>
+                </Alert>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-gray-700 font-medium">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="h-11 px-4 transition-all border-gray-300 focus:border-purple-400 focus:ring focus:ring-purple-200 focus:ring-opacity-50"
+                />
               </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-gray-700 font-medium">
+                    Password
+                  </Label>
+                  <a href="#" className="text-sm font-medium text-purple-600 hover:text-purple-800 transition-colors">
+                    Forgot password?
+                  </a>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="h-11 px-4 transition-all border-gray-300 focus:border-purple-400 focus:ring focus:ring-purple-200 focus:ring-opacity-50"
+                />
+              </div>
+            </form>
+          </CardContent>
+          <CardFooter className="flex flex-col space-y-4 pt-2">
+            <div className="flex w-full space-x-2">
+              <Button
+                className="flex-1 h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium transition-all duration-200 shadow-md hover:shadow-lg"
+                onClick={handleLogin}
+                disabled={isLoading}
+              >
+                {isLoading ? "Signing in..." : "Sign In"}
+              </Button>
+              <Button
+                className="flex-1 h-11 bg-white text-purple-600 border border-purple-200 hover:bg-purple-50 font-medium transition-all duration-200"
+                onClick={handleRegister}
+                disabled={isLoading}
+                variant="outline"
+              >
+                {isLoading ? "Signing up..." : "Sign Up"}
+              </Button>
             </div>
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <div className="flex w-full space-x-2">
-            <Button className="flex-1" onClick={handleLogin} disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign In"}
-            </Button>
-            <Button className="flex-1" onClick={handleRegister} disabled={isLoading}>
-              {isLoading ? "Signing up..." : "Sign Up"}
-            </Button>
-          </div>
-          <div className="text-center text-sm">
-            By continuing, you agree to our{" "}
-            <a href="#" className="font-medium text-primary hover:underline">
-              Terms of Service
-            </a>{" "}
-            and{" "}
-            <a href="#" className="font-medium text-primary hover:underline">
-              Privacy Policy
-            </a>
-          </div>
-        </CardFooter>
-      </Card>
+            <div className="text-center text-sm text-gray-600 mt-4">
+              By continuing, you agree to our{" "}
+              <a href="#" className="font-medium text-purple-600 hover:text-purple-800 transition-colors">
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a href="#" className="font-medium text-purple-600 hover:text-purple-800 transition-colors">
+                Privacy Policy
+              </a>
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   )
 }
