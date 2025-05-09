@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server"
 import { Resend } from "resend"
 
-// Initialize Resend with the API key from environment variable
-// This ensures the key isn't hardcoded in the source code
-const resendApiKey = process.env.RESEND_API_KEY || "re_AZLy2ib4_LeUXngd795gZ4HPfAoTyfFQe"
-const resend = new Resend(resendApiKey)
+// Initialize Resend with API key - handle it safely for build time
+let resend: Resend
+
+// This function ensures we only initialize Resend when the API is actually called
+// This prevents build-time errors when environment variables aren't available
+function getResendClient() {
+  if (!resend) {
+    const apiKey = process.env.RESEND_API_KEY
+
+    if (!apiKey) {
+      throw new Error("RESEND_API_KEY environment variable is not set")
+    }
+
+    resend = new Resend(apiKey)
+  }
+  return resend
+}
 
 // The verified domain and from email
 const FROM_EMAIL = "contacto@alvarogarces.site"
@@ -39,7 +52,10 @@ export async function POST(request: Request) {
 
     // Send the welcome email
     try {
-      const { data, error } = await resend.emails.send({
+      // Get the Resend client (will throw if API key is missing)
+      const resendClient = getResendClient()
+
+      const { data, error } = await resendClient.emails.send({
         from: `Alvaro Garces <${FROM_EMAIL}>`,
         to: [email],
         subject: `Welcome to our platform, ${firstName}!`,
@@ -70,10 +86,10 @@ export async function POST(request: Request) {
         },
       })
     } catch (emailError: any) {
-      console.error("Email sending error:", emailError)
+      console.error("Email service error:", emailError.message)
       return NextResponse.json(
         {
-          error: "Failed to send welcome email",
+          error: "Email service configuration error",
           details: emailError.message,
           partial: true,
           user: { firstName, lastName, email },

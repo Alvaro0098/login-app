@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server"
 import { Resend } from "resend"
 
-// Initialize Resend with API key from environment variables
-const resendApiKey = process.env.RESEND_API_KEY
-if (!resendApiKey) {
-  console.error("RESEND_API_KEY is not configured in environment variables")
-}
+// Initialize Resend with API key - handle it safely for build time
+let resend: Resend
 
-const resend = new Resend(resendApiKey)
+// This function ensures we only initialize Resend when the API is actually called
+// This prevents build-time errors when environment variables aren't available
+function getResendClient() {
+  if (!resend) {
+    const apiKey = process.env.RESEND_API_KEY
+
+    if (!apiKey) {
+      throw new Error("RESEND_API_KEY environment variable is not set")
+    }
+
+    resend = new Resend(apiKey)
+  }
+  return resend
+}
 
 // The verified domain and from email
 const FROM_EMAIL = "contacto@alvarogarces.site"
@@ -29,29 +39,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
     }
 
-    // Check if API key is configured
-    if (!resendApiKey) {
-      return NextResponse.json({ error: "Email service is not configured" }, { status: 500 })
+    try {
+      // Get the Resend client (will throw if API key is missing)
+      const resendClient = getResendClient()
+
+      // Send the welcome email
+      const { data, error } = await resendClient.emails.send({
+        from: `Alvaro Garces <${FROM_EMAIL}>`,
+        to: [email],
+        subject: `Welcome to Alvaro Garces, ${name}!`,
+        html: getWelcomeEmailHtml(name),
+      })
+
+      if (error) {
+        console.error("Resend API error:", error)
+        return NextResponse.json({ error: error.message || "Failed to send email" }, { status: 500 })
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Welcome email sent successfully",
+        data,
+      })
+    } catch (emailError: any) {
+      console.error("Email service error:", emailError.message)
+      return NextResponse.json(
+        {
+          error: "Email service configuration error",
+          details: emailError.message,
+        },
+        { status: 500 },
+      )
     }
-
-    // Send the welcome email
-    const { data, error } = await resend.emails.send({
-      from: `Alvaro Garces <${FROM_EMAIL}>`,
-      to: [email],
-      subject: `Welcome to Alvaro Garces, ${name}!`,
-      html: getWelcomeEmailHtml(name),
-    })
-
-    if (error) {
-      console.error("Resend API error:", error)
-      return NextResponse.json({ error: error.message || "Failed to send email" }, { status: 500 })
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "Welcome email sent successfully",
-      data,
-    })
   } catch (error: any) {
     console.error("Unexpected error:", error)
     return NextResponse.json({ error: error.message || "An unexpected error occurred" }, { status: 500 })
@@ -76,7 +95,7 @@ function getWelcomeEmailHtml(name: string) {
           padding: 20px;
         }
         .header {
-          background-color: #4b5563;
+          background: linear-gradient(to right, #6366f1, #8b5cf6, #ec4899);
           color: white;
           padding: 20px;
           text-align: center;
@@ -96,7 +115,7 @@ function getWelcomeEmailHtml(name: string) {
         }
         .button {
           display: inline-block;
-          background-color: #4b5563;
+          background: linear-gradient(to right, #6366f1, #8b5cf6);
           color: white;
           text-decoration: none;
           padding: 10px 20px;
