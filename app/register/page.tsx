@@ -13,7 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { InfoIcon, CheckCircleIcon } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 
-// The production webhook URL
+// Highlighting the production webhook URL constant
 const WEBHOOK_URL = "https://alvaro98.app.n8n.cloud/webhook/register"
 
 export default function RegisterPage() {

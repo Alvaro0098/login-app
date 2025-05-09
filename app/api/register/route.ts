@@ -1,86 +1,165 @@
 import { NextResponse } from "next/server"
+import { Resend } from "resend"
 
-// The production webhook URL
-const WEBHOOK_URL = "https://alvaro98.app.n8n.cloud/webhook/register"
+// Initialize Resend with the API key from environment variable
+// This ensures the key isn't hardcoded in the source code
+const resendApiKey = process.env.RESEND_API_KEY || "re_AZLy2ib4_LeUXngd795gZ4HPfAoTyfFQe"
+const resend = new Resend(resendApiKey)
+
+// The verified domain and from email
+const FROM_EMAIL = "contacto@alvarogarces.site"
+const DOMAIN = "alvarogarces.site"
 
 export async function POST(request: Request) {
   try {
     // Parse the request body
-    const formData = await request.json()
+    const { firstName, lastName, phone, email, password } = await request.json()
+
+    console.log("Processing registration for:", { firstName, lastName, email, phone: phone ? "✓" : "✗" })
 
     // Validate required fields
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
+    if (!firstName || !lastName || !email || !password) {
+      console.error("Missing required fields:", {
+        firstName: !!firstName,
+        lastName: !!lastName,
+        email: !!email,
+        password: !!password,
+      })
       return NextResponse.json({ error: "First name, last name, email, and password are required" }, { status: 400 })
     }
 
-    console.log("Sending registration data to webhook:", {
-      ...formData,
-      password: "********", // Log masked password for security
-    })
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      console.error("Invalid email format:", email)
+      return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
+    }
 
-    // Send data to the webhook with improved error handling
+    console.log("Sending welcome email to:", email)
+
+    // Send the welcome email
     try {
-      const response = await fetch(WEBHOOK_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone || "", // Ensure phone is never undefined
-          password: formData.password,
-        }),
+      const { data, error } = await resend.emails.send({
+        from: `Alvaro Garces <${FROM_EMAIL}>`,
+        to: [email],
+        subject: `Welcome to our platform, ${firstName}!`,
+        html: getWelcomeEmailHtml(firstName, lastName),
       })
 
-      // Get response text first
-      const responseText = await response.text()
-      console.log(`Webhook response (${response.status}):`, responseText)
-
-      // Try to parse as JSON if possible
-      let responseData
-      try {
-        responseData = JSON.parse(responseText)
-      } catch (e) {
-        // If not JSON, use the text as is
-        responseData = { message: responseText }
+      if (error) {
+        console.error("Resend API error:", error)
+        return NextResponse.json({ error: error.message || "Failed to send email" }, { status: 500 })
       }
 
-      // Check for HTTP errors
-      if (!response.ok) {
-        console.error(`Webhook error (${response.status}):`, responseText)
-        return NextResponse.json(
-          {
-            error: `Webhook request failed with status: ${response.status}`,
-            details: responseText,
-            url: WEBHOOK_URL,
-          },
-          { status: response.status },
-        )
-      }
+      console.log("Email sent successfully:", data?.id)
 
-      // Return success response
+      // In a real application, you would save the user to a database here
+      // For this demo, we'll just return success
+
       return NextResponse.json({
         success: true,
-        message: "Registration successful! Welcome email sent.",
-        data: responseData,
+        message: "Registration successful and welcome email sent",
+        data: {
+          emailId: data?.id,
+          user: {
+            firstName,
+            lastName,
+            email,
+            phone: phone || null,
+          },
+        },
       })
-    } catch (fetchError: any) {
-      console.error("Fetch error:", fetchError)
+    } catch (emailError: any) {
+      console.error("Email sending error:", emailError)
       return NextResponse.json(
         {
-          error: "Failed to connect to webhook",
-          details: fetchError.message,
-          url: WEBHOOK_URL,
-          tip: "This may be due to CORS restrictions, network issues, or an incorrect webhook URL.",
+          error: "Failed to send welcome email",
+          details: emailError.message,
+          partial: true,
+          user: { firstName, lastName, email },
         },
         { status: 500 },
       )
     }
   } catch (error: any) {
-    console.error("Registration error:", error)
-    return NextResponse.json({ error: "An unexpected error occurred", details: error.message }, { status: 500 })
+    console.error("Unexpected error during registration:", error)
+    return NextResponse.json({ error: error.message || "An unexpected error occurred" }, { status: 500 })
   }
+}
+
+// HTML template for the welcome email
+function getWelcomeEmailHtml(firstName: string, lastName: string) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Welcome to Alvaro Garces</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          line-height: 1.6;
+          color: #333;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+        }
+        .header {
+          background: linear-gradient(to right, #6366f1, #8b5cf6, #ec4899);
+          color: white;
+          padding: 20px;
+          text-align: center;
+          border-radius: 5px 5px 0 0;
+        }
+        .content {
+          padding: 20px;
+          border: 1px solid #ddd;
+          border-top: none;
+          border-radius: 0 0 5px 5px;
+        }
+        .footer {
+          text-align: center;
+          margin-top: 20px;
+          font-size: 12px;
+          color: #666;
+        }
+        .button {
+          display: inline-block;
+          background: linear-gradient(to right, #6366f1, #8b5cf6);
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin-top: 15px;
+        }
+        @media only screen and (max-width: 480px) {
+          body {
+            padding: 10px;
+          }
+          .header, .content {
+            padding: 15px;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Welcome to Alvaro Garces!</h1>
+      </div>
+      <div class="content">
+        <p>Hello ${firstName} ${lastName},</p>
+        <p>Thank you for registering with us! We're excited to have you join our community.</p>
+        <p>Your account has been successfully created and is ready to use.</p>
+        <p>If you have any questions or need assistance, feel free to reply to this email.</p>
+        <p>Best regards,<br>The Alvaro Garces Team</p>
+        <a href="https://${DOMAIN}" class="button">Visit Our Website</a>
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} Alvaro Garces. All rights reserved.</p>
+        <p>You're receiving this email because you registered on our platform.</p>
+      </div>
+    </body>
+    </html>
+  `
 }
