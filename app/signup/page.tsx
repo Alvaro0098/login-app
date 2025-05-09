@@ -25,40 +25,66 @@ export default function LoginPage() {
     setMessage(null)
 
     try {
+      // Sign in with email and password
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) {
-        if (error.message.includes("confirm your email")) {
-          setMessage({
-            text: "Please confirm your email before logging in. Check your inbox for a confirmation link.",
-            type: "error",
-          })
-        } else {
-          setMessage({
-            text: error.message || "Failed to sign in",
-            type: "error",
-          })
-        }
-        return
+        throw error
       }
 
-      setMessage({
-        text: "Login successful!",
-        type: "success",
-      })
+      // Check if the user exists in user_profiles
+      if (data.user) {
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("id", data.user.id)
+            .single()
 
-      // Redirect to dashboard after successful login
-      setTimeout(() => {
-        router.push("/dashboard")
-      }, 1000)
+          if (profileError && profileError.code !== "PGRST116") {
+            // PGRST116 is "no rows returned"
+            console.error("Error checking profile:", profileError)
+          }
+
+          // If profile doesn't exist, create it using user metadata
+          if (!profileData) {
+            const metadata = data.user.user_metadata || {}
+
+            const { error: insertError } = await supabase.from("user_profiles").insert({
+              id: data.user.id,
+              first_name: metadata.first_name || "",
+              last_name: metadata.last_name || "",
+              phone: metadata.phone || "",
+            })
+
+            if (insertError) {
+              console.error("Error creating profile:", insertError)
+              // Continue even if profile creation fails
+            }
+          }
+        } catch (profileErr) {
+          console.error("Error handling profile:", profileErr)
+          // Continue even if profile handling fails
+        }
+
+        // Show success message and redirect to dashboard
+        setMessage({ text: "Successfully signed in!", type: "success" })
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 1000)
+      }
     } catch (error: any) {
-      setMessage({
-        text: error.message || "An unexpected error occurred",
-        type: "error",
-      })
+      // Handle specific error cases
+      if (error.message.includes("Invalid login credentials")) {
+        setMessage({ text: "Invalid email or password", type: "error" })
+      } else if (error.message.includes("Email not confirmed")) {
+        setMessage({ text: "Please confirm your email before logging in", type: "error" })
+      } else {
+        setMessage({ text: error.message || "Failed to sign in", type: "error" })
+      }
     } finally {
       setIsLoading(false)
     }
@@ -70,7 +96,7 @@ export default function LoginPage() {
         <Card className="backdrop-blur-sm bg-white/90 shadow-xl border-0">
           <CardHeader className="space-y-1 pb-6">
             <CardTitle className="text-2xl font-bold text-center text-gray-800">Welcome Back</CardTitle>
-            <CardDescription className="text-center text-gray-600">Sign in to your account to continue</CardDescription>
+            <CardDescription className="text-center text-gray-600">Sign in to your account</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleLogin}>
@@ -104,12 +130,9 @@ export default function LoginPage() {
                   <Label htmlFor="password" className="text-gray-700 font-medium">
                     Password
                   </Label>
-                  <Link
-                    href="/forgot-password"
-                    className="text-sm font-medium text-purple-600 hover:text-purple-800 transition-colors"
-                  >
+                  <a href="#" className="text-sm font-medium text-purple-600 hover:text-purple-800 transition-colors">
                     Forgot password?
-                  </Link>
+                  </a>
                 </div>
                 <Input
                   id="password"
@@ -125,17 +148,27 @@ export default function LoginPage() {
                 className="w-full h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium transition-all duration-200 shadow-md hover:shadow-lg"
                 disabled={isLoading}
               >
-                {isLoading ? "Signing in..." : "Sign in"}
+                {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex justify-center">
-            <p className="text-sm text-gray-600">
+          <CardFooter className="flex flex-col space-y-4 pt-2">
+            <div className="text-center text-sm text-gray-600 mt-4">
               Don't have an account?{" "}
               <Link href="/register" className="font-medium text-purple-600 hover:text-purple-800 transition-colors">
-                Sign up
+                Register now
               </Link>
-            </p>
+            </div>
+            <div className="text-center text-sm text-gray-600">
+              By continuing, you agree to our{" "}
+              <a href="#" className="font-medium text-purple-600 hover:text-purple-800 transition-colors">
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a href="#" className="font-medium text-purple-600 hover:text-purple-800 transition-colors">
+                Privacy Policy
+              </a>
+            </div>
           </CardFooter>
         </Card>
       </div>
